@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 
 const connectToDB = () => {
   mongoose
-    .connect(process.env.MONGO_URI)
+    .connect(process.env.LOCAL_MONGO_URI)
     .then(() => {
       console.log("connected to db and running on port", process.env.PORT);
     })
