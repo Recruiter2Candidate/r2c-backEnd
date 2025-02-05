@@ -1,101 +1,181 @@
-// This file handles user sign-up (registration) and log-in functionality. When a user registers, it checks if they already exist, creates a new user, and generates a token for secure access. When a user logs in, it checks their credentials (email and password), and if valid, generates a token for secure access.
+const CandidateUser = require('../models/Candidate');
+const RecruiterUser = require('../models/Recruiter');
+const Otp = require('../models/Otp');
+const multer = require("multer");
+const crypto = require('crypto');
+const cloudinary = require("../config/cloudinary");
+const sendEmail = require('../utils/sendEmail');
+const bcrypt = require('bcryptjs')
 
-const User = require("../models/User");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
+const registerCandidate = async (req, res) => {
+    try {
+        const { name, username, email, password, jobTitle, experience, skills, roles, resume, qualifications, jobLocation, workType, salary, availability, currentJob, professionalExperience, professionalSkill, preferredRole } = req.body;
 
-// Enable or disable debug logs
-const DEBUG = true;
+        console.log("Request Body:", req.body);
 
-// Function to get the current timestamp
-const getTimeStamp = () => {
-  return new Date().toISOString(); // Returns the current timestamp in ISO 8601 format
+        if (!name || !username || !email || !password || !currentJob || !professionalExperience || !professionalSkill || !preferredRole) {
+            return res.status(400).json({ message: "Missing required field" });
+        }
+
+        const existingUser = await CandidateUser.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: "User with this email already exists" });
+        }
+
+        let avatarUrl = "";
+        if (req.file) {
+            try {
+                const cloudImage = await cloudinary.uploader.upload(req.file.path, {
+                    folder: "avatar"
+                });
+                avatarUrl = cloudImage.secure_url;
+            } catch (error) {
+                return res.status(500).json({ message: "Error uploading image to Cloudinary.", error: error.message });
+            }
+        }
+
+        const user = new CandidateUser({
+            name,
+            username,
+            email,
+            password,
+            avatar: avatarUrl,
+            jobTitle,
+            experience,
+            skills,
+            roles,
+            resume,
+            qualifications,
+            jobLocation,
+            workType,
+            salary,
+            availability,
+            currentJob,
+            professionalExperience,
+            professionalSkill,
+            preferredRole
+        });
+
+        await user.save();
+
+        const otp = crypto.randomInt(100000, 999999).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        await Otp.create({
+            user: user._id,
+            userType: 'CandidateUser',
+            otp,
+            type: 'register',
+            expires_at: expiresAt
+        });
+
+        const subject = 'Your OTP Code';
+        const message = `Your OTP code is: <strong>${otp}</strong>. It will expire in 10 minutes.`;
+        const send_to = email;
+        const sent_from = process.env.EMAIL_USER;
+        const reply_to = process.env.EMAIL_USER;
+
+        await sendEmail(subject, message, send_to, sent_from, reply_to);
+
+        console.log(`OTP for ${email}: ${otp}`);
+
+        return res.status(201).json({ message: "User registered successfully, check your email for OTP", user });
+
+    } catch (error) {
+        return res.status(500).json({ message: "Server error", error: error.message });
+    }
 };
 
-// Register user
-const registerUser = async (req, res) => {
-  const { firstName, lastName, email, password } = req.body; // Get user data from the request body
+const registerRecruiter = async (req, res) => {
+    try {
+        const { name, username, email, password, companyName, companySize, industry, roles, jobTitle, qualification, briefIntroduction } = req.body;
 
-  // Check if any of these field is empty, if its empty throw error
-  if (!firstName || !lastName || !email || !password) {
-    return res.status(400).json({ message: "Please fill all fields" });
-  }
+        console.log("Request Body:", req.body);
 
-  try {
-    // Check if the user already exists in the database, if the email exists already in the datbase send a error message
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: "User already exists" });
+        if (!name || !username || !email || !password || !companyName || !companySize || !industry || !roles || !jobTitle || !qualification || !briefIntroduction) {
+            console.log("Missing fields:", {name, username, email, password, currentJob, professionalExperience, professionalSkill, preferredRole});
+            return res.status(400).json({ message: "Missing required fields." });
+        }
+
+        const existingUser = await RecruiterUser.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: "User with this email already exists." });
+        }
+
+        let avatarUrl = "";
+        if (req.file) {
+            try {
+                const cloudImage = await cloudinary.uploader.upload(req.file.path, {
+                    folder: "avatar"
+                });
+                avatarUrl = cloudImage.secure_url;
+            } catch (error) {
+                return res.status(500).json({ message: "Error uploading image to Cloudinary.", error: error.message });
+            }
+        }
+
+        const user = new RecruiterUser({
+            name,
+            username,
+            email,
+            password,
+            avatar: avatarUrl,
+            companyName,
+            companySize,
+            industry,
+            roles,
+            jobTitle,
+            qualification,
+            briefIntroduction
+        });
+
+        user.password = await bcrypt.hash(password, 10);
+
+        await user.save();
+
+        const otp = crypto.randomInt(100000, 999999).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry time (10 minutes)
+
+        await Otp.create({
+            user: user._id,
+            userType: 'RecruiterUser',
+            otp,
+            type: 'register',
+            expires_at: expiresAt
+        });
+
+        const subject = 'Your OTP Code';
+        const message = `Your OTP code is: <strong>${otp}</strong>. It will expire in 10 minutes.`;
+        const send_to = email;
+        const sent_from = process.env.EMAIL_USER;
+        const reply_to = process.env.EMAIL_USER;
+
+        await sendEmail(subject, message, send_to, sent_from, reply_to);
+
+        console.log(`OTP for ${email}: ${otp}`);
+
+        return res.status(201).json({ message: "Recruiter user registered successfully, OTP sent to email.", user });
+
+    } catch (error) {
+        return res.status(500).json({ message: "Server error", error: error.message });
     }
-
-    // If user doesn't exist, create a new user
-    const user = await User.create({ firstName, lastName, email, password });
-
-    // Generate a token for the new user without expiration
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-
-    if (DEBUG) console.log("Generated Token:", token);
-
-    // Respond with the user data and their token, user created successfully
-    res.status(201).json({ user: { firstName, lastName, email }, token });
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error }); // handle unexpected error
-  }
 };
 
-// Login user
-const loginUser = async (req, res) => {
-  const { email, password } = req.body; // Get login details from the request body
+const login = async (req,res)=>{
+    try {
+        const {email, password} = req.body
 
-  // Check if any field is empty, if any is empty send an error message
-  if (!email || !password) {
-    return res.status(400).json({ message: "Please fill all fields" });
-  }
+        if(!email || !password){
+            return res.status(400).json({message: "invalid email or password"})
+        }
 
-  try {
-    // Check if the user exists in the database, if user.email exists in the databse send an eror message
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: "Invalid credentials" });
+        
+    } catch (error) {
+        
     }
+}
 
-    // This bit will be for password authentication to compare if the provided password tallys with the hashed password in the database
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" }); // Send an error message if passwords don't match
-    }
-
-    // Generate a token for the logged-in user without expiration
-    const token = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET
-    );
-
-    // Debug log with timestamp
-    if (DEBUG) {
-      console.log(`[${getTimeStamp()}] Generated Token:`, token);
-    }
-
-    // Respond with the user data and their token
-    res.status(200).json({
-      token,
-      user: {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error }); // handle unexpected error
-  }
+module.exports = {
+    registerCandidate,
+    registerRecruiter,
 };
-
-const logOutUser = async (req, res) => {
-  try {
-    res.status(200).json({ message: "User logged out successfully!" });
-  } catch (error) {
-    res.status(500).json({ message: "Error logging out", error });
-  }
-};
-
-module.exports = { registerUser, loginUser, logOutUser };
