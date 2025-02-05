@@ -1,18 +1,17 @@
-const mongoose = require('mongoose');
+// This file handles connecting the app to the database (where we store data). It uses Mongoose to set up the connection to MongoDB. If the connection works, it starts the server; if not, it shows an error and stops the app.
 
-const MONGO_URI = process.env.LOCAL_MONGO_URI;
+const mongoose = require("mongoose");
 
-mongoose.connect(MONGO_URI);
-
-mongoose.connection
-    .on("open", ()=>{
-        console.log("Database connected")
-        
+const connectToDB = () => {
+  mongoose
+    .connect(process.env.LOCAL_MONGO_URI)
+    .then(() => {
+      console.log("connected to db and running on port", process.env.PORT);
     })
+    .catch((err) => {
+      console.error("Connection error:", err);
+      process.exit(1);
+    });
+};
 
-    .once("error", ()=>{
-        console.log("failed to connect to database")
-        
-    })
-
-    module.exports = mongoose;
+module.exports = connectToDB;
