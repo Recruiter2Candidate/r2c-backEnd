@@ -34,6 +34,7 @@ const registerCandidate = async (req, res) => {
             }
         }
 
+        // const hashedPassword = await bcrypt.hash(password, 10);
         const user = new CandidateUser({
             name,
             username,
@@ -55,6 +56,8 @@ const registerCandidate = async (req, res) => {
             professionalSkill,
             preferredRole
         });
+
+
 
         await user.save();
 
@@ -113,7 +116,7 @@ const registerRecruiter = async (req, res) => {
                 return res.status(500).json({ message: "Error uploading image to Cloudinary.", error: error.message });
             }
         }
-
+        // const hashedPassword = await bcrypt.hash(password, 10);
         const user = new RecruiterUser({
             name,
             username,
@@ -129,12 +132,12 @@ const registerRecruiter = async (req, res) => {
             briefIntroduction
         });
 
-        user.password = await bcrypt.hash(password, 10);
+        // user.password = await bcrypt.hash(password, 10);
 
         await user.save();
 
         const otp = crypto.randomInt(100000, 999999).toString();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry time (10 minutes)
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
 
         await Otp.create({
             user: user._id,
@@ -161,21 +164,75 @@ const registerRecruiter = async (req, res) => {
     }
 };
 
-const login = async (req,res)=>{
+const login = async (req, res) => {
     try {
-        const {email, password} = req.body
+        const { email, password } = req.body;
 
-        if(!email || !password){
-            return res.status(400).json({message: "invalid email or password"})
+        if (!email || !password) {
+            return res.status(400).json({ message: "Invalid email or password" });
         }
 
+        console.log(email);
         
+        const emailLowerCase = email.toLowerCase();
+
+        let existingUser = await CandidateUser.findOne({ email: emailLowerCase });
+        
+        if (!existingUser) {
+            existingUser = await RecruiterUser.findOne({ email: emailLowerCase });
+        }
+
+        if (!existingUser) {
+            return res.status(400).json({ message: "User not found" });
+        }
+
+        console.log(existingUser);
+
+        console.log("Stored Hashed Password:", existingUser.password);
+        console.log("Entered Password (Trimmed):", password.trim()); 
+
+        if (!existingUser.password) {
+            return res.status(500).json({ message: "User password not found in database" });
+        }
+
+        // const isMatch = await existingUser.comparePassword(password.trim());
+        const isMatch = bcrypt.compareSync(password, existingUser.password);
+
+        console.log("Comparison Result:", isMatch);
+
+        if (!isMatch) {
+            return res.status(400).json({ message: "Invalid credentials" });
+        }
+
+        const token = jwt.sign(
+            { userId: existingUser._id, userType: existingUser.constructor.modelName },
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        return res.status(200).json({
+            message: "Login successful",
+            token,
+            user: {
+                id: existingUser._id,
+                name: existingUser.name,
+                email: existingUser.email,
+                userType: existingUser.constructor.modelName,
+            }
+        });
+
     } catch (error) {
-        
+        console.error("Error during login:", error);
+        return res.status(500).json({ message: "Internal server error", error: error.message });
     }
-}
+};
+
+
+
+
 
 module.exports = {
     registerCandidate,
     registerRecruiter,
+    login
 };

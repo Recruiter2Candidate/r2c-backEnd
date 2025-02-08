@@ -8,7 +8,7 @@ const bodyParser = require('body-parser')
 
 const PORT = process.env.PORT || 3000
 const authRoutes = require('./src/routes/auth')
-const  chats  = require('./src/data/data')
+// const  chats  = require('./src/data/data')
 
 
 const app = express();

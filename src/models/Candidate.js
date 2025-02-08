@@ -115,9 +115,9 @@ candidateSchema.pre('save', async function (next) {
     next();
 });
 
-candidateSchema.methods.comparePassword = async function (password) {
-    return bcrypt.compare(password, this.password);
-};
+// candidateSchema.methods.comparePassword = async function (password) {
+//     return bcrypt.compare(password, this.password);
+// };
 
 
 
