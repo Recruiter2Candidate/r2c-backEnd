@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const cloudinary = require("../config/cloudinary");
 const sendEmail = require('../utils/sendEmail');
 const bcrypt = require('bcryptjs')
+const jwt = require("jsonwebtoken")
 
 const registerCandidate = async (req, res) => {
     try {
@@ -195,8 +196,8 @@ const login = async (req, res) => {
             return res.status(500).json({ message: "User password not found in database" });
         }
 
-        // const isMatch = await existingUser.comparePassword(password.trim());
-        const isMatch = bcrypt.compareSync(password, existingUser.password);
+        const isMatch = await existingUser.comparePassword(password.trim());
+        // const isMatch = bcrypt.compareSync(password, existingUser.password);
 
         console.log("Comparison Result:", isMatch);
 

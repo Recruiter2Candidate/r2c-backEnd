@@ -1,7 +1,7 @@
 const mongoose = require('mongoose')
 const bcrypt = require('bcryptjs')
 
-const candidateSchema = mongoose.Schema({
+const  candidateSchema = mongoose.Schema({
     name: { 
         type: String,
         required: true,
@@ -111,13 +111,21 @@ const candidateSchema = mongoose.Schema({
 
 candidateSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
-    this.password = bcrypt.hash(this.password, 10);
-    next();
+
+    try{
+        this.password = await bcrypt.hash(this.password, 10);
+        next();
+    }
+
+ catch (error) {
+    next(error);
+}
+  
 });
 
-// candidateSchema.methods.comparePassword = async function (password) {
-//     return bcrypt.compare(password, this.password);
-// };
+candidateSchema.methods.comparePassword = async function (password) {
+    return bcrypt.compare(password, this.password);
+};
 
 
 
